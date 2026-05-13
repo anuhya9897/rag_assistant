@@ -1,0 +1,174 @@
+:root {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #1a1a1a;
+  background: #f4f5f7;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.header {
+  background: #0f3d5c;
+  color: #fff;
+  padding: 1.25rem 1.5rem;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.sub {
+  margin: 0.35rem 0 0;
+  opacity: 0.9;
+  font-size: 0.9rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr min(38%, 420px);
+  gap: 1rem;
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 800px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: #fff;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.ask-form label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+textarea {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #c8cdd4;
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin: 0.75rem 0;
+}
+
+.row label input[type="number"],
+.row label input[type="text"] {
+  display: block;
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #c8cdd4;
+  border-radius: 6px;
+  min-width: 8rem;
+}
+
+.model-hint {
+  flex-basis: 100%;
+  margin: 0 0 0.25rem;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.model-hint code {
+  font-size: 0.85em;
+  background: #f1f5f9;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+.check {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.check input {
+  width: 1rem;
+  height: 1rem;
+}
+
+button[type="submit"] {
+  background: #0f6e9c;
+  color: #fff;
+  border: none;
+  padding: 0.55rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status {
+  font-size: 0.85rem;
+  color: #555;
+  min-height: 1.25rem;
+}
+
+.answer {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  white-space: pre-wrap;
+}
+
+.sources-panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.source-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.source-card .meta {
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
+.source-card pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.78rem;
+}
+
+.error {
+  color: #b91c1c;
+}

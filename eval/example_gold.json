@@ -1,0 +1,21 @@
+{
+  "description": "Gold items for RAG eval. relevant_source_contains: substrings that must match indexed source paths. gold_answer: optional reference text for answer token P/R/F1 (use scripts/eval_rag.py --with-llm).",
+  "items": [
+    {
+      "id": "project_setup",
+      "question": "How do I set up a new project in mCase?",
+      "relevant_source_contains": ["project_setup_guide.md", "projects_summary.md"]
+    },
+    {
+      "id": "knowledge_graph",
+      "question": "How do I query the knowledge graph?",
+      "relevant_source_contains": ["knowledge_graph_summary.md", "query_knowledge_graph"]
+    },
+    {
+      "id": "with_reference_answer",
+      "question": "What is RAG?",
+      "relevant_source_contains": [],
+      "gold_answer": "Retrieval augmented generation combines search with a language model."
+    }
+  ]
+}

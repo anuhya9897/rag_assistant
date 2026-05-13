@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG POC – Ask the knowledge base</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>RAG POC</h1>
+      <p class="tagline">Search finds exact or closest docs · You get intent and the best possible answer</p>
+    </header>
+
+    <main class="main">
+      <section class="ask-section">
+        <form id="ask-form" class="ask-form">
+          <div class="input-wrap">
+            <label for="question">Question</label>
+            <textarea
+              id="question"
+              name="question"
+              rows="3"
+              placeholder="e.g. How do I configure the system?"
+              required
+            ></textarea>
+          </div>
+          <div class="options">
+            <div class="field">
+              <label for="k">Top chunks (k)</label>
+              <input type="number" id="k" name="k" value="5" min="1" max="20" />
+            </div>
+            <div class="field">
+              <label for="model">Ollama model</label>
+              <input type="text" id="model" name="model" value="llama3.1:8b" placeholder="llama3.1:8b" />
+            </div>
+          </div>
+          <button type="submit" id="submit-btn" class="btn btn-primary">Ask</button>
+        </form>
+      </section>
+
+      <section id="result-section" class="result-section hidden">
+        <div class="result-tabs">
+          <button type="button" class="tab active" data-tab="answer">Answer</button>
+          <button type="button" class="tab" data-tab="sources">Sources</button>
+        </div>
+        <div id="answer-panel" class="panel active">
+          <div id="answer-content" class="content markdown"></div>
+        </div>
+        <div id="sources-panel" class="panel">
+          <div id="sources-content" class="content sources-list"></div>
+        </div>
+      </section>
+
+      <section id="error-section" class="error-section hidden">
+        <p id="error-message" class="error-message"></p>
+      </section>
+
+      <section id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <p>Retrieving and generating answer…</p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>API: <span id="api-url">http://localhost:8000</span></p>
+    </footer>
+  </div>
+  <script src="js/app.js"></script>
+</body>
+</html>

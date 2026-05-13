@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AB KB Assistant</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>AB KB Assistant</h1>
+      <p class="sub">RAG POC — questions against your indexed knowledge base</p>
+    </header>
+
+    <main class="layout">
+      <section class="panel chat-panel">
+        <form id="ask-form" class="ask-form">
+          <label for="question">Question</label>
+          <textarea
+            id="question"
+            name="question"
+            rows="3"
+            placeholder="Ask something…"
+            required
+          ></textarea>
+          <div class="row">
+            <label>
+              k
+              <input type="number" id="k" name="k" value="5" min="1" max="20" />
+            </label>
+            <label>
+              Min similarity
+              <input
+                type="number"
+                id="similarity_min"
+                name="similarity_min"
+                value=""
+                min="-1"
+                max="1"
+                step="0.05"
+                placeholder="optional"
+                title="Cosine similarity floor; leave empty for no filter"
+              />
+            </label>
+            <label>
+              Model
+              <input
+                type="text"
+                id="model"
+                name="model"
+                value="llama3.1:8b"
+                list="ollama-models"
+                autocomplete="off"
+                spellcheck="false"
+                title="Must match an entry from: ollama list"
+              />
+            </label>
+            <datalist id="ollama-models">
+              <option value="llama3.1:8b"></option>
+              <option value="gemma3:1b"></option>
+            </datalist>
+            <p class="model-hint">
+              Use the exact tag from <code>ollama list</code> (e.g. <code>llama3.1:8b</code>, not
+              <code>llama3:1.8b</code>).
+            </p>
+            <label class="check">
+              <input type="checkbox" id="stream" checked />
+              Stream answer
+            </label>
+          </div>
+          <button type="submit" id="submit">Ask</button>
+          <p id="status" class="status" aria-live="polite"></p>
+        </form>
+        <article id="answer" class="answer" hidden></article>
+      </section>
+
+      <section class="panel sources-panel">
+        <h2>Sources</h2>
+        <div id="sources" class="sources"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
