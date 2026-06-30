@@ -84,4 +84,5 @@ wrapt==1.17.3
 yarl==1.22.0
 sentence-transformers>=2.2.2
 torch>=2.0.0
-ollama-0.15.2
+ollama
+docx2txt>=0.8

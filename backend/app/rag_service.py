@@ -1,5 +1,5 @@
 """
-RAG service: retrieval + prompt building + Ollama generation.
+RAG service: retrieval + prompt building + LLM generation (Ollama or OpenAI/Azure GPT).
 Uses project-root kb.duckdb so API can be run from any cwd.
 
 Embedding (env):
@@ -11,6 +11,10 @@ Embedding (env):
   RAG_EMBED_DIM          – optional override for Ollama vector length.
   RAG_EMBED_MODEL_PATH   – for provider "st": local folder (no HF download).
   RAG_EMBED_LOCAL_FILES_ONLY – for "st": use only HF cache (needs full cache).
+
+Chat LLM (answer generation):
+  Ollama – models from `ollama list` (default).
+  OpenAI/Azure – set OPENAI_API_KEY or AZURE_OPENAI_* ; optional RAG_OPENAI_MODELS for the UI list.
 """
 import os
 import logging
@@ -20,6 +24,16 @@ import ollama
 from ollama import ResponseError
 import math
 from typing import Optional
+
+from .openai_llm import (
+    OpenAIChatError,
+    chat_complete as openai_chat_complete,
+    chat_stream as openai_chat_stream,
+    is_openai_chat_model,
+    list_openai_chat_models,
+    openai_configured,
+    openai_health_ok,
+)
 
 # Project root (parent of backend/)
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,6 +45,7 @@ EMBED_MODEL = "all-MiniLM-L6-v2"
 # Vector length for all-MiniLM-L6-v2 (must match stored embeddings and SQL FLOAT[n] casts).
 EMBED_DIM = 384
 DEFAULT_LLM = "llama3.1:8b"
+ASSISTANT_NAME = "Simba"
 
 # So `python -m uvicorn ...` also defaults to Ollama unless the user explicitly set RAG_EMBED_PROVIDER.
 os.environ.setdefault("RAG_EMBED_PROVIDER", "ollama")
@@ -49,6 +64,10 @@ _st_gated_logged = False
 
 class EmbedderLoadError(RuntimeError):
     """Raised when the sentence-transformers model cannot be loaded (e.g. SSL or missing cache)."""
+
+
+class ModelInstallError(RuntimeError):
+    """Raised when an Ollama chat model cannot be installed/pulled on demand."""
 
 
 def _env_truthy(name: str) -> bool:
@@ -169,6 +188,180 @@ def ollama_embed_model_is_pulled(model: str | None = None) -> bool:
         if n.split(":", 1)[0] == base:
             return True
     return False
+
+
+# Base names (before ":") commonly used only for /api/embed, not chat completion.
+_OLLAMA_EMBED_ONLY_BASES = frozenset(
+    p.split(":", 1)[0]
+    for p in (
+        "nomic-embed-text",
+        "mxbai-embed-large",
+        "snowflake-arctic-embed",
+        "bge-m3",
+        "embeddinggemma",
+        "granite-embedding",
+        "qwen3-embedding",
+        "jina-embeddings",
+        "paraphrase-multilingual",
+    )
+)
+
+
+def list_ollama_llm_models() -> list[str]:
+    """
+    Installed Ollama model tags suitable for chat completion (excludes known embedding-only bases).
+    Sorted case-insensitively with DEFAULT_LLM first when present.
+    """
+    names = _ollama_list_model_names()
+    out: list[str] = []
+    for n in names:
+        base = n.split(":", 1)[0]
+        if base in _OLLAMA_EMBED_ONLY_BASES:
+            continue
+        out.append(n)
+    out.sort(key=str.casefold)
+    if DEFAULT_LLM in out:
+        out.remove(DEFAULT_LLM)
+        out.insert(0, DEFAULT_LLM)
+    return out
+
+
+def _ollama_extra_model_tags() -> list[str]:
+    """Optional tags to show in the UI before install (RAG_OLLAMA_EXTRA_MODELS, comma-separated)."""
+    raw = os.environ.get("RAG_OLLAMA_EXTRA_MODELS", "").strip()
+    if not raw:
+        return []
+    return [m.strip() for m in raw.split(",") if m.strip()]
+
+
+def list_ollama_llm_models_for_ui() -> list[str]:
+    """Installed Ollama chat models plus optional extra tags for pull-via-Refresh."""
+    out = list_ollama_llm_models()
+    seen = set(out)
+    for tag in _ollama_extra_model_tags():
+        if tag not in seen:
+            out.append(tag)
+            seen.add(tag)
+    return out
+
+
+def list_all_llm_models() -> dict:
+    """Ollama + configured OpenAI models for the UI."""
+    ollama_models = list_ollama_llm_models_for_ui()
+    openai_models = list_openai_chat_models()
+    return {
+        "models": ollama_models + openai_models,
+        "providers": {"ollama": ollama_models, "openai": openai_models},
+    }
+
+
+def _ollama_model_is_installed_exact(model: str) -> bool:
+    wanted = (model or "").strip()
+    if not wanted:
+        return False
+    return wanted in _ollama_list_model_names()
+
+
+def _is_ollama_model_not_found(exc: Exception) -> bool:
+    if isinstance(exc, ResponseError):
+        if getattr(exc, "status_code", None) == 404:
+            return True
+        if "not found" in str(exc).lower():
+            return True
+    return False
+
+
+def _ollama_pull_failure_message(model: str, exc: Exception) -> str:
+    """User-facing message when ollama pull fails (no secrets)."""
+    err = str(exc).lower()
+    if "file does not exist" in err or "manifest" in err:
+        return (
+            f"Model {model!r} is not in the Ollama library (invalid tag). "
+            f"Run `ollama list` for installed models or see https://ollama.com/library. "
+            f"Common tags: gemma3:1b, gemma3:4b, llama3.1:8b — not gemma3:8b or llama3.1:16b."
+        )
+    if "not found" in err:
+        return f"Model {model!r} not found in Ollama. Check the exact tag with `ollama list`."
+    return f"Could not install {model!r} via Ollama: {exc}"
+
+
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
+    # #region agent log
+    try:
+        import json as _json
+        import time as _time
+
+        payload = {
+            "sessionId": "106332",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(_time.time() * 1000),
+        }
+        with open(
+            os.path.join(_PROJECT_ROOT, "debug-106332.log"),
+            "a",
+            encoding="utf-8",
+        ) as _f:
+            _f.write(_json.dumps(payload) + "\n")
+    except Exception:
+        pass
+    # #endregion
+
+
+def ensure_ollama_chat_model(model: str) -> None:
+    """
+    Ensure an Ollama chat model is installed.
+    If missing, attempt to pull it. If pull fails, raise ModelInstallError with a user-friendly message.
+    """
+    wanted = (model or "").strip()
+    if not wanted:
+        raise ModelInstallError("model installation failed")
+    if _ollama_model_is_installed_exact(wanted):
+        _debug_log(
+            "C",
+            "rag_service.ensure_ollama_chat_model",
+            "already_installed",
+            {"model": wanted},
+        )
+        return
+    try:
+        log.info("Ollama model %r not installed; attempting pull…", wanted)
+        _debug_log(
+            "A",
+            "rag_service.ensure_ollama_chat_model",
+            "pull_start",
+            {"model": wanted},
+        )
+        ollama.pull(wanted)
+    except Exception as e:
+        log.warning("Ollama pull failed for %r: %s", wanted, e)
+        msg = _ollama_pull_failure_message(wanted, e)
+        _debug_log(
+            "A",
+            "rag_service.ensure_ollama_chat_model",
+            "pull_failed",
+            {"model": wanted, "error": str(e), "user_message": msg},
+        )
+        raise ModelInstallError(msg) from e
+    if not _ollama_model_is_installed_exact(wanted):
+        _debug_log(
+            "B",
+            "rag_service.ensure_ollama_chat_model",
+            "pull_ok_not_in_list",
+            {"model": wanted},
+        )
+        raise ModelInstallError(
+            f"Ollama pull finished but {wanted!r} does not appear in `ollama list`. "
+            "Try Refresh again or restart Ollama."
+        )
+    _debug_log(
+        "C",
+        "rag_service.ensure_ollama_chat_model",
+        "pull_success",
+        {"model": wanted},
+    )
 
 
 def _ollama_embed_missing_message(exc: Exception, model: str) -> str:
@@ -338,6 +531,10 @@ def get_health_snapshot():
         out["ollama_ok"] = True
     except Exception as e:
         out["ollama_error"] = str(e)
+    oai_ok, oai_err = openai_health_ok()
+    out["openai_ok"] = oai_ok
+    out["openai_error"] = oai_err
+    out["openai_models"] = list_openai_chat_models()
     return out
 
 
@@ -372,7 +569,7 @@ def retrieve(question: str, k: int, similarity_min: float | None = None):
             raise EmbedderLoadError(
                 f"Knowledge base was indexed with vector length {kb_dim}, but Ollama model "
                 f"{_ollama_embed_model()!r} returns length {dim}. Rebuild the index so both use the same embedder.\n"
-                "From the rag-poc folder (PowerShell):\n"
+                "From the project root folder (PowerShell):\n"
                 "  python build_index_duckdb_local_incremental.py\n"
                 "The index script uses the same Ollama embed settings as the API and will clear/re-embed "
                 "when it detects a dimension mismatch.\n"
@@ -429,6 +626,8 @@ def build_prompt(question: str, retrieved):
             f"content:\n{text}\n"
         )
     system = (
+        f"You are {ASSISTANT_NAME}, a knowledge-base assistant."
+        f"If the user asks your name or who you are, say you are {ASSISTANT_NAME}.\n\n"
         "The documents below were found by the search engine: exact or closest match to the user's question.\n\n"
         "Your role: understand the user's intent, then generate the best possible answer.\n"
         "Use only the provided documents. Cite with [Source 1], [Source 2], etc. where appropriate.\n"
@@ -440,7 +639,7 @@ def build_prompt(question: str, retrieved):
 
 
 def ask(question: str, k: int = 5, model: str = DEFAULT_LLM, similarity_min: float | None = None):
-    """Retrieve chunks, build prompt, call Ollama; returns answer and source list."""
+    """Retrieve chunks, build prompt, call Ollama or OpenAI; returns answer and source list."""
     t0 = time.perf_counter()
     retrieved = retrieve(question, k, similarity_min=similarity_min)
     t_retrieve = time.perf_counter()
@@ -449,13 +648,23 @@ def ask(question: str, k: int = 5, model: str = DEFAULT_LLM, similarity_min: flo
         for (source, chunk_id, text, score) in retrieved
     ]
     system, user = build_prompt(question, retrieved)
-    resp = ollama.chat(
-        model=model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-    )
+    if is_openai_chat_model(model):
+        answer = openai_chat_complete(model, system, user)
+    else:
+        ensure_ollama_chat_model(model)
+        try:
+            resp = ollama.chat(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+            )
+        except ResponseError as e:
+            if _is_ollama_model_not_found(e):
+                raise ModelInstallError("model installation failed") from e
+            raise
+        answer = resp["message"]["content"]
     t_done = time.perf_counter()
     log.info(
         "rag_ask timings_ms retrieve=%.1f llm=%.1f total=%.1f k=%s model=%s",
@@ -465,7 +674,6 @@ def ask(question: str, k: int = 5, model: str = DEFAULT_LLM, similarity_min: flo
         k,
         model,
     )
-    answer = resp["message"]["content"]
     return {"answer": answer, "sources": sources}
 
 
@@ -483,30 +691,59 @@ def ask_stream(question: str, k: int = 5, model: str = DEFAULT_LLM, similarity_m
     ]
     yield ("sources", sources)
     system, user = build_prompt(question, retrieved)
-    stream = ollama.chat(
-        model=model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        stream=True,
-    )
     full = []
     first_token = True
-    for chunk in stream:
-        part = (chunk.get("message") or {}).get("content") or ""
-        if part:
-            if first_token:
-                log.info(
-                    "rag_ask_stream timings_ms retrieve=%.1f ttft=%.1f k=%s model=%s",
-                    (t_retrieve - t0) * 1000,
-                    (time.perf_counter() - t_retrieve) * 1000,
-                    k,
-                    model,
-                )
-                first_token = False
-            full.append(part)
-            yield ("token", part)
+
+    if is_openai_chat_model(model):
+        try:
+            for part in openai_chat_stream(model, system, user):
+                if first_token:
+                    log.info(
+                        "rag_ask_stream timings_ms retrieve=%.1f ttft=%.1f k=%s model=%s (openai)",
+                        (t_retrieve - t0) * 1000,
+                        (time.perf_counter() - t_retrieve) * 1000,
+                        k,
+                        model,
+                    )
+                    first_token = False
+                full.append(part)
+                yield ("token", part)
+        except OpenAIChatError:
+            raise
+    else:
+        ensure_ollama_chat_model(model)
+        try:
+            stream = ollama.chat(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                stream=True,
+            )
+        except ResponseError as e:
+            if _is_ollama_model_not_found(e):
+                raise ModelInstallError("model installation failed") from e
+            raise
+        try:
+            for chunk in stream:
+                part = (chunk.get("message") or {}).get("content") or ""
+                if part:
+                    if first_token:
+                        log.info(
+                            "rag_ask_stream timings_ms retrieve=%.1f ttft=%.1f k=%s model=%s",
+                            (t_retrieve - t0) * 1000,
+                            (time.perf_counter() - t_retrieve) * 1000,
+                            k,
+                            model,
+                        )
+                        first_token = False
+                    full.append(part)
+                    yield ("token", part)
+        except ResponseError as e:
+            if _is_ollama_model_not_found(e):
+                raise ModelInstallError("model installation failed") from e
+            raise
     t_done = time.perf_counter()
     log.info(
         "rag_ask_stream timings_ms stream_total=%.1f wall=%.1f k=%s model=%s",

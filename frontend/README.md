@@ -1,18 +1,30 @@
-# RAG POC – Frontend
+# Frontend — legacy standalone UI
 
-Simple web UI to ask questions against the RAG API.
+**Alternate** web UI for the Simba RAG API. The **primary** UI is [`../web/`](../web/README.md), served at **`http://localhost:8000/ui/`** when you run `python backend/run.py`.
+
+Use this folder only if you want a separate static host or the older dark-theme layout.
 
 ## Usage
 
-1. Start the backend API (see `backend/README.md`).
+1. Start the API (see [`../backend/README.md`](../backend/README.md)).  
 2. Open the UI:
-   - **File:** Open `frontend/index.html` in a browser.
-   - **Or serve:** e.g. `npx serve frontend` and open http://localhost:3000
+   - Open `frontend/index.html` in a browser, or  
+   - `npx serve frontend` → [http://localhost:3000](http://localhost:3000)
 
-The app calls **http://localhost:8000** by default. To use another API URL, edit `API_BASE` in `js/app.js`.
+Default API base: **http://localhost:8000** (`js/app.js` → `API_BASE`).
 
-## Structure
+## Layout
 
-- `index.html` – Single-page layout (form, result tabs, error/loading).
-- `css/style.css` – Theming and layout.
-- `js/app.js` – Form submit, fetch `/api/ask`, display answer and sources.
+| Path | Role |
+|------|------|
+| `index.html` | Single-page form, result tabs, loading/error |
+| `css/style.css` | Dark theme |
+| `js/app.js` | `POST /api/ask`, sources display |
+
+## Limitations vs `web/`
+
+- No streaming UI, reindex panel, or RedMane branding  
+- No model **Refresh** / ensure flow  
+- Manual `API_BASE` edit for non-default hosts  
+
+See root [README.md](../README.md) for full project documentation.

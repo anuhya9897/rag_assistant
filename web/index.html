@@ -3,13 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AB KB Assistant</title>
+    <title>Simba</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
+
   <body>
     <header class="header">
-      <h1>AB KB Assistant</h1>
-      <p class="sub">RAG POC — questions against your indexed knowledge base</p>
+      <div class="header-inner">
+        <div class="header-brand">
+          <div class="header-logo-slot">
+            <img class="header-logo" src="Redmane.png" alt="RedMane Technology" />
+          </div>
+          <div class="header-titles">
+            <img class="header-simba" src="Simba.png" alt="Simba" />
+            <p class="sub">Knowledge base assistant — local, deterministic, extensible</p>
+          </div>
+        </div>
+      </div>
     </header>
 
     <main class="layout">
@@ -42,35 +52,55 @@
                 title="Cosine similarity floor; leave empty for no filter"
               />
             </label>
-            <label>
-              Model
-              <input
-                type="text"
-                id="model"
-                name="model"
-                value="llama3.1:8b"
-                list="ollama-models"
-                autocomplete="off"
-                spellcheck="false"
-                title="Must match an entry from: ollama list"
-              />
-            </label>
-            <datalist id="ollama-models">
-              <option value="llama3.1:8b"></option>
-              <option value="gemma3:1b"></option>
-            </datalist>
-            <p class="model-hint">
-              Use the exact tag from <code>ollama list</code> (e.g. <code>llama3.1:8b</code>, not
-              <code>llama3:1.8b</code>).
-            </p>
             <label class="check">
               <input type="checkbox" id="stream" checked />
               Stream answer
             </label>
           </div>
+          <div class="model-field">
+            <label for="model">Model</label>
+            <div class="model-row">
+              <select id="model" name="model" disabled aria-busy="true">
+                <option value="">Loading models…</option>
+              </select>
+              <button
+                type="button"
+                id="refresh-models"
+                class="btn-refresh"
+                title="Reload model list; for Ollama, pull/install the selected model"
+              >
+                Refresh
+              </button>
+            </div>
+            <p class="model-hint">
+              Pick a model, then <strong>Refresh</strong> to reload the list. <strong>OpenAI / GPT</strong> models use
+              Azure/OpenAI.
+            </p>
+          </div>
           <button type="submit" id="submit">Ask</button>
           <p id="status" class="status" aria-live="polite"></p>
         </form>
+        <details class="reindex-details">
+          <summary>Rebuild knowledge index</summary>
+          <form id="reindex-form" class="reindex-form">
+            <label for="reindex-path">Knowledge base folder or .zip path</label>
+            <input
+              type="text"
+              id="reindex-path"
+              name="path"
+              placeholder="data\Knowledgebase or data\Notices.zip"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <p class="reindex-hint" id="reindex-hint">
+              Folder or <code>.zip</code> on the machine running the API. Leave empty to use
+              <code>data/Knowledgebase</code>. Indexes
+              <code>.md</code>, <code>.txt</code>, <code>.html</code>, <code>.pdf</code>, <code>.docx</code>.
+            </p>
+            <button type="submit" id="reindex-submit" class="btn-reindex">Rebuild index</button>
+            <p id="reindex-status" class="reindex-status" aria-live="polite"></p>
+          </form>
+        </details>
         <article id="answer" class="answer" hidden></article>
       </section>
 
@@ -79,6 +109,17 @@
         <div id="sources" class="sources"></div>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <span class="footer-copy">Confidential. Copyright © 2026 RedMane Technology LLC</span>
+      <div class="footer-brand">
+        <img class="footer-logo" src="redmane_logo.svg" alt="" onerror="this.style.display='none'" />
+        <div class="footer-brand-text">
+          <span class="footer-brand-name">RedMane</span>
+          <span class="footer-brand-tag">TECHNOLOGY</span>
+        </div>
+      </div>
+    </footer>
 
     <script src="app.js"></script>
   </body>

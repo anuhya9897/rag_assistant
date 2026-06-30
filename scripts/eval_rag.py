@@ -1,7 +1,7 @@
 """
 Evaluate RAG retrieval (precision@k / recall@k) and optionally answer token P/R/F1 vs gold_answer.
 
-  cd rag-poc
+  cd rag_assistant   # repository root
   python scripts/eval_rag.py --eval eval/example_gold.json -k 5
   python scripts/eval_rag.py --eval eval/example_gold.json -k 5 --with-llm --model llama3.1:8b
 

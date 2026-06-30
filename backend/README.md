@@ -1,28 +1,47 @@
-# RAG POC – Backend API
+# Backend — Simba API
 
-FastAPI REST API that exposes the RAG pipeline (retrieve from DuckDB + generate with Ollama).
+FastAPI service for **Simba** (RAG over `kb.duckdb`): retrieval, chat completion (Ollama / Azure OpenAI), health, model list, and index rebuild.
 
 ## Run
 
-From **project root** (rag-poc):
+From the **repository root** (recommended):
 
 ```bash
-pip install -r backend/requirements.txt
 python backend/run.py
 ```
 
-Or with uvicorn directly:
+- API: [http://localhost:8000](http://localhost:8000)  
+- UI (static): [http://localhost:8000/ui/](http://localhost:8000/ui/)  
+- OpenAPI: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+`run.py` changes cwd to the project root, loads `.env`, and starts uvicorn.
+
+## Layout
+
+| Path | Role |
+|------|------|
+| `run.py` | Entry point |
+| `app/main.py` | Routes, CORS, `/ui` mount, `POST /api/reindex` |
+| `app/rag_service.py` | DuckDB retrieval, embeddings, prompts (**Simba**), Ollama chat |
+| `app/openai_llm.py` | Azure / OpenAI chat completions |
+| `app/eval_metrics.py` | Metrics used by `scripts/eval_rag.py` |
+| `requirements.txt` | FastAPI, uvicorn, duckdb, ollama, openai, … |
+
+## Install
 
 ```bash
-python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+pip install -r backend/requirements.txt
+pip install -r ../requirements.txt   # indexing deps if you run reindex from API
 ```
 
-- API: http://localhost:8000  
-- OpenAPI docs: http://localhost:8000/docs  
+## Configuration
 
-## Endpoints
+See root [README.md](../README.md) for `.env`, `RAG_EMBED_PROVIDER`, `RAG_OLLAMA_EMBED_MODEL`, Azure OpenAI, and reindex options.
 
-- **GET /api/health** – Health check
-- **POST /api/ask** – Ask a question; body: `{ "question": "...", "k": 5, "model": "llama3.1:8b" }`
+## Main endpoints
 
-The API uses `kb.duckdb` and the embedder/Ollama stack from the existing RAG scripts. Build the index first with `build_index_duckdb_local_incremental.py`.
+- `GET /api/health` — KB, chunk count, Ollama/Azure status  
+- `GET /api/models` — UI model dropdown  
+- `POST /api/ask`, `POST /api/ask/stream` — Q&A with sources  
+- `POST /api/reindex` — rebuild `kb.duckdb` (local folder or `.zip` path)  
+- `POST /api/models/ensure` — pull Ollama model from UI **Refresh**

@@ -1,5 +1,5 @@
 """
-Run the RAG API. From project root (rag-poc):
+Run the RAG API. From project root (repository root):
   python backend/run.py
   OR: python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 """
@@ -12,6 +12,14 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 os.chdir(_PROJECT_ROOT)
+
+# Load .env from project root (Azure OpenAI, RAG_OPENAI_MODELS, etc.)
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(os.path.join(_PROJECT_ROOT, ".env"))
+except ImportError:
+    pass
 
 # Default to Ollama embeddings (rag_service also setdefaults on import).
 os.environ.setdefault("RAG_EMBED_PROVIDER", "ollama")
